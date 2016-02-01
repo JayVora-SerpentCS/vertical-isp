@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <openerp>
     <data noupdate="1">
-        <record id="analytic_journal_data" model="account.analytic.journal">
+
+        <!-- <record id="analytic_journal_data" model="account.analytic.journal">
             <field name="code">DT</field>
             <field name="name">Data Use</field>
             <field name="type">general</field>
@@ -15,6 +16,7 @@
             <field name="code">RC</field>
             <field name="name">Recurrent Service</field>
             <field name="type">general</field>
-        </record>
+        </record> -->
+
     </data>
 </openerp>

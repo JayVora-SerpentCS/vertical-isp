@@ -1,46 +1,25 @@
 # -*- coding: utf-8 -*-
-
-##############################################################################
-#
-#    OpenERP, Open Source Management Solution
-#    Copyright (C) 2013 Savoirfaire-Linux Inc. (<www.savoirfairelinux.com>).
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU Affero General Public License as
-#    published by the Free Software Foundation, either version 3 of the
-#    License, or (at your option) any later version.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU Affero General Public License for more details.
-#
-#    You should have received a copy of the GNU Affero General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-#
-##############################################################################
+# © 2013 Savoirfaire-Linux Inc. (<www.savoirfairelinux.com>).
+# © 2011-Today Serpent Consulting Services Pvt. Ltd.
+#    (<http://www.serpentcs.com>)
+# License AGPL-3.0 or later (http://www.gnu.org/licenses/lgpl.html)
 
 {
     'name': 'Product Dependencies',
-    'version': '1.0.1',
+    'version': '9.0.1.0.0',
     'category': 'Product Management',
-    'description': """
-Product Dependencies
-====================
-
-Allows products to have other products/categories as dependencies.
-
-This module is primarily used by the contract_isp_wizard module to create product/service packages based on product inter-dependencies. It's aim is to provide the basic structure so that other modules can build sales wizards with decision trees based on each product dependency tree.
-
-This module is not related to the manufacturing process or the Bill of Materials.""",
-    'author': "Savoirfaire-Linux Inc,Odoo Community Association (OCA)",
+    'summary': """Allows products to have other products/categories\
+     as dependencies.""",
+    'contributors': ['Juan Ignacio Úbeda <juani@aizean.com>'],
+    'author': "Savoir-faire Linux Inc, Serpent Consulting Services Pvt. Ltd.,\
+    Odoo Community Association (OCA)",
     'website': 'www.savoirfairelinux.com',
-    'license': 'AGPL-3',
+    'license': 'LGPL-3',
     'depends': ['product'],
     'data': [
         'security/ir.model.access.csv',
-        'product_dependencies_view.xml'
+        'views/product_dependencies_view.xml'
     ],
-    'active': False,
-    'installable': False,
+    'installable': True,
+    'application': False,
 }

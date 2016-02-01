@@ -1,119 +1,120 @@
 # -*- coding: utf-8 -*-
-
-##############################################################################
-#
-#    OpenERP, Open Source Management Solution
-#    Copyright (C) 2013 Savoir-faire Linux (<www.savoirfairelinux.com>).
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU Affero General Public License as
-#    published by the Free Software Foundation, either version 3 of the
-#    License, or (at your option) any later version.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU Affero General Public License for more details.
-#
-#    You should have received a copy of the GNU Affero General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-#
-##############################################################################
+# © 2013 Savoirfaire-Linux Inc. (<www.savoirfairelinux.com>).
+# © 2016-Today Serpent Consulting Services Pvt. Ltd.
+#    (<http://www.serpentcs.com>)
+# License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl.html)
 
 import datetime
-from openerp.osv import orm, fields
-from openerp.addons.contract_isp.contract import add_months
+from openerp.tools import DEFAULT_SERVER_DATETIME_FORMAT
+from openerp import api, fields, models, _
 
 
-class contract_service_activate(orm.TransientModel):
+class contract_service_activate(models.TransientModel):
+
     _name = 'contract.service.activate'
 
-    def _get_account_id(self, cr, uid, context=None):
-        if context.get('active_model', '') == 'contract.service':
-            contract_id = context.get('active_id')
-            contract_service = self.pool.get('contract.service').browse(
-                cr, uid, contract_id, context)
+    @api.model
+    def default_get(self, fields):
+        res = super(contract_service_activate, self).default_get(fields)
+        if self._context.get('active_model', '') == 'contract.service':
+            active_id = self._context.get('active_id')
+            contract_service = self.env['contract.service'].browse(active_id)
+            res.update({'account_id': contract_service.account_id.id,
+                        'service_id': contract_service.id})
+        return res
 
-            return contract_service.account_id.id
-        return None
+    activation_date = fields.Datetime('Activation Date',
+                                      default=fields.datetime.now())
+    account_id = fields.Many2one('account.analytic.account',
+                                 'Account')
+    service_id = fields.Many2one('contract.service',
+                                 'Service')
 
-    def _get_service_id(self, cr, uid, context=None):
-        if context.get('active_model', '') == 'contract.service':
-            service_id = context.get('active_id')
-            contract_service = self.pool.get('contract.service').browse(
-                cr, uid, service_id, context)
-
-            return contract_service.id
-        return None
-
-    _columns = {
-        'activation_date': fields.datetime('Activation Date'),
-        'account_id': fields.many2one('account.analytic.account', 'Account'),
-        'service_id': fields.many2one('contract.service', 'Service')
-    }
-
-    _defaults = {
-        'activation_date': fields.datetime.now,
-        'account_id': lambda s, cr, uid, ctx: s._get_account_id(cr, uid, ctx),
-        'service_id': lambda s, cr, uid, ctx: s._get_service_id(cr, uid, ctx)
-    }
-
-    def activate(self, cr, uid, ids, context=None):
-        wizard = self.browse(cr, uid, ids[0], context)
-        company_obj = self.pool.get('res.company')
-        company_id = company_obj._company_default_get(cr, uid, context)
-        cutoff = company_obj.read(cr, uid, company_id, 'cutoff_day', context)
-        contract_service_obj = self.pool.get('contract.service')
-        contract_service = contract_service_obj.browse(
-            cr, uid, wizard.service_id.id, context)
-
+    @api.multi
+    def activate(self):
+        contract_service_obj = self.env['contract.service']
+        contract_service = contract_service_obj.browse(self.service_id.id)
         activation_date = datetime.date(
-            int(wizard.activation_date[:4]),
-            int(wizard.activation_date[5:7]),
-            int(wizard.activation_date[8:10]))
-
-        cuttoff_day = company_obj.read(
-            cr, uid,
-            company_id,
-            fields=['cutoff_day'],
-            context=context)['cutoff_day']
-
-        invoice_day = company_obj.read(
-            cr, uid,
-            company_id,
-            fields=['invoice_day'],
-            context=context)['invoice_day']
-
-        cutoff_date = datetime.date(
-            datetime.date.today().year,
-            datetime.date.today().month,
-            int(cuttoff_day))
-
-        invoice_date = datetime.date(
-            datetime.date.today().year,
-            datetime.date.today().month,
-            int(invoice_day))
-
+            int(self.activation_date[:4]),
+            int(self.activation_date[5:7]),
+            int(self.activation_date[8:10]))
         contract_service.write({
-            'activation_date': wizard.activation_date,
+            'activation_date': self.activation_date,
             'state': 'active'
         })
+        if contract_service.analytic_line_type == 'r':
+            contract_service.create_analytic_line(mode='prorata',
+                                      date=activation_date)
+        return True
 
-        query = [
-            ('account_id', '=', wizard.account_id.id),
-            ('state', '=', 'draft')
-        ]
-        draft_line_ids = contract_service_obj.search(cr, uid, query,
-                                                     context=context)
+    @api.constrains('activation_date')
+    def check_future_date(self):
+        today = datetime.datetime.utcnow().date()
+        for wiz in self:
+            act_date = datetime.datetime.strptime(
+                wiz.activation_date, DEFAULT_SERVER_DATETIME_FORMAT,
+            ).date()
+            if act_date > today:
+                raise Warning(_('You cannot activate a service in future.'))
+                return False
+        return True
 
-        if not draft_line_ids:
-            for line in wizard.account_id.contract_service_ids:
-                if line.activation_line_generated is False:
-                    line.create_analytic_line(mode='manual',
-                                              date=activation_date)
 
-                    if line.analytic_line_type == 'r':
-                        line.create_analytic_line(mode='prorata',
-                                                  date=activation_date)
+class contract_service_deactivate(models.TransientModel):
 
+    _name = 'contract.service.deactivate'
+
+    @api.model
+    def default_get(self, fields):
+        res = super(contract_service_deactivate, self).default_get(fields)
+        if self._context.get('active_model', '') == 'contract.service':
+            active_id = self._context.get('active_id')
+            contract_service = self.env['contract.service'].browse(active_id)
+            res.update({'account_id': contract_service.account_id.id,
+                        'service_id': contract_service.id})
+        return res
+
+    deactivation_date = fields.Datetime('Deactivation Date',
+                                        default=fields.datetime.now())
+    account_id = fields.Many2one('account.analytic.account', 'Account')
+    service_id = fields.Many2one('contract.service', 'Service')
+
+    @api.multi
+    def deactivate(self):
+        context = self._context or {}
+        context = dict(context)
+        contract_service_obj = self.env['contract.service']
+        context.update({'deactivation_date': self.deactivation_date})
+        contract_service_obj.action_desactivate([self.service_id.id],
+                                                context=context)
+        # If we activate again, we will need a new activation line, as
+        # we will have refunded any extra, and will need to bill in
+        # advance again.
+        self.service_id.write({
+            'activation_line_generated': False
+        })
+        self._create_refund_lines()
+        return True
+
+    @api.multi
+    def _create_refund_lines(self):
+        contract_service_obj = self.env['contract.service']
+        deactivate_date = datetime.datetime.strptime(
+            self.deactivation_date,
+            DEFAULT_SERVER_DATETIME_FORMAT,
+        ).date()
+        contract_service_obj.create_refund_line([self.service_id.id],
+            mode='prorata', date=deactivate_date)
+
+    @api.constrains('deactivation_date')
+    def _check_future_date(self):
+        today = datetime.datetime.utcnow().date()
+        for wiz in self:
+            act_date = datetime.datetime.strptime(
+                wiz.deactivation_date, DEFAULT_SERVER_DATETIME_FORMAT,
+            ).date()
+            if act_date > today:
+                raise Warning(_('You cannot deactivate a '
+                                'service in the future.'))
+                return False
         return True
